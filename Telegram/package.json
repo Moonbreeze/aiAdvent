@@ -1,0 +1,21 @@
+{
+  "name": "telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot built with grammY and TypeScript",
+  "main": "dist/bot.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/bot.js",
+    "dev": "npx ts-node src/bot.ts"
+  },
+  "dependencies": {
+    "grammy": "^1.21.1",
+    "dotenv": "^16.3.1",
+    "openai": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.2"
+  }
+}
