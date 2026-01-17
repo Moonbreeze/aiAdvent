@@ -1,12 +1,13 @@
 import { Bot, Context } from "grammy";
-import { sessionManager } from "../services/sessionManager";
+
+import { sessionManager } from "../services";
 
 /**
  * Registers the /chat command handler on the bot.
  * Starts a new LLM chat session for the user.
  * @param bot - The grammy Bot instance.
  */
-export function registerChatCommand(bot: Bot<Context>) {
+export const registerChatCommand = (bot: Bot<Context>) => {
   bot.command("chat", async (ctx) => {
     const userId = ctx.from?.id;
 
@@ -27,4 +28,4 @@ export function registerChatCommand(bot: Bot<Context>) {
       "Чат начат! Отправляйте мне сообщения, и я отвечу.\n\nИспользуйте /close для завершения."
     );
   });
-}
+};

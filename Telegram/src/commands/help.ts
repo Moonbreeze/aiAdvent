@@ -4,7 +4,7 @@ import { Bot, Context } from "grammy";
  * Registers the /help command handler on the bot.
  * @param bot - The grammy Bot instance.
  */
-export function registerHelpCommand(bot: Bot<Context>) {
+export const registerHelpCommand = (bot: Bot<Context>) => {
   bot.command("help", (ctx) => {
     ctx.reply(
       "Доступные команды:\n\n" +
@@ -14,4 +14,4 @@ export function registerHelpCommand(bot: Bot<Context>) {
         "/close - Завершить чат"
     );
   });
-}
+};

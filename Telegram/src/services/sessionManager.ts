@@ -1,24 +1,17 @@
-/**
- * Represents a message in a chat session.
- */
-export interface ChatMessage {
-  role: "user" | "assistant";
-  text: string;
-}
+import {
+  OutputMode,
+  ChatMessage,
+  ChatSession,
+} from "./types";
 
-/**
- * Represents an active chat session.
- */
-export interface ChatSession {
-  messages: ChatMessage[];
-  startedAt: Date;
-}
+export { OutputMode };
 
 /**
  * Manages active LLM chat sessions per user.
  */
 class SessionManager {
   private sessions: Map<number, ChatSession> = new Map();
+  private outputModes: Map<number, OutputMode> = new Map();
 
   /**
    * Starts a new chat session for a user.
@@ -74,6 +67,24 @@ class SessionManager {
    */
   getMessages(userId: number): ChatMessage[] {
     return this.sessions.get(userId)?.messages ?? [];
+  }
+
+  /**
+   * Sets the output mode for a user.
+   * @param userId - The Telegram user ID.
+   * @param mode - The output mode to set.
+   */
+  setOutputMode(userId: number, mode: OutputMode): void {
+    this.outputModes.set(userId, mode);
+  }
+
+  /**
+   * Gets the output mode for a user.
+   * @param userId - The Telegram user ID.
+   * @returns The output mode, defaults to "text".
+   */
+  getOutputMode(userId: number): OutputMode {
+    return this.outputModes.get(userId) ?? "text";
   }
 }
 

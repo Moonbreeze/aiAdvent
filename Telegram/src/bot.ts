@@ -1,34 +1,19 @@
 import { Bot } from "grammy";
 import "dotenv/config";
-import { registerStartCommand } from "./commands/start";
-import { registerHelpCommand } from "./commands/help";
-import { registerChatCommand } from "./commands/chat";
-import { registerCloseCommand } from "./commands/close";
-import { sessionManager } from "./services/sessionManager";
-import { fetchYandexGpt } from "./services/yandexGpt";
+
+import { registerAllCommands } from "./commands";
+import { handleTextOutsideChat, handleTextInChat } from "./handlers";
+import { sessionManager } from "./services";
 
 const token = process.env.BOT_TOKEN;
-const yandexApiKey = process.env.YANDEX_API_KEY;
-const yandexFolderId = process.env.YANDEX_FOLDER_ID;
 
 if (!token) {
   throw new Error("BOT_TOKEN environment variable is not set");
 }
 
-if (!yandexApiKey) {
-  throw new Error("YANDEX_API_KEY environment variable is not set");
-}
-
-if (!yandexFolderId) {
-  throw new Error("YANDEX_FOLDER_ID environment variable is not set");
-}
-
 const bot = new Bot(token);
 
-registerStartCommand(bot);
-registerHelpCommand(bot);
-registerChatCommand(bot);
-registerCloseCommand(bot);
+registerAllCommands(bot);
 
 bot.on("message:text", async (ctx) => {
   const userId = ctx.from?.id;
@@ -41,41 +26,11 @@ bot.on("message:text", async (ctx) => {
   }
 
   if (!sessionManager.hasSession(userId)) {
-    await ctx.reply(
-      "Чтобы общаться со мной, сначала начните чат командой /chat."
-    );
-    return;
-  }
-
-  sessionManager.addMessage(userId, { role: "user", text });
-
-  const thinkingMessage = await ctx.reply("Думаю...");
-
-  const messages = sessionManager.getMessages(userId);
-  const result = await fetchYandexGpt(messages, yandexApiKey, yandexFolderId);
-
-  if (result.success && result.text) {
-    sessionManager.addMessage(userId, { role: "assistant", text: result.text });
-    await ctx.api.editMessageText(
-      ctx.chat.id,
-      thinkingMessage.message_id,
-      result.text
-    );
+    await handleTextOutsideChat(ctx);
   } else {
-    await ctx.api.editMessageText(
-      ctx.chat.id,
-      thinkingMessage.message_id,
-      "Произошла ошибка при обращении к YandexGPT."
-    );
+    await handleTextInChat(ctx);
   }
 });
-
-bot.api.setMyCommands([
-  { command: "start", description: "Запустить бота" },
-  { command: "help", description: "Показать доступные команды" },
-  { command: "chat", description: "Начать чат с ИИ" },
-  { command: "close", description: "Завершить чат" },
-]);
 
 bot.start();
 console.log("Bot is running...");

@@ -1,12 +1,13 @@
 import { Bot, Context } from "grammy";
-import { sessionManager } from "../services/sessionManager";
+
+import { sessionManager } from "../services";
 
 /**
  * Registers the /close command handler on the bot.
  * Ends the user's active LLM chat session.
  * @param bot - The grammy Bot instance.
  */
-export function registerCloseCommand(bot: Bot<Context>) {
+export const registerCloseCommand = (bot: Bot<Context>) => {
   bot.command("close", async (ctx) => {
     const userId = ctx.from?.id;
 
@@ -21,4 +22,4 @@ export function registerCloseCommand(bot: Bot<Context>) {
       await ctx.reply("У вас нет активного чата.");
     }
   });
-}
+};
