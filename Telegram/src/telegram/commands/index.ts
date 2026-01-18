@@ -4,6 +4,7 @@ import { registerHelpCommand } from "./help";
 import { registerChatCommand } from "./chat";
 import { registerCloseCommand } from "./close";
 import { registerModeCommand } from "./mode";
+import { registerInterviewCommand } from "./interview";
 import { BotCommand } from "./types";
 
 export { BotCommand };
@@ -26,6 +27,11 @@ export const commands: BotCommand[] = [
     command: "chat",
     description: "Начать чат с ИИ",
     register: registerChatCommand,
+  },
+  {
+    command: "interview",
+    description: "Начать интервью для сбора данных",
+    register: registerInterviewCommand,
   },
   {
     command: "close",

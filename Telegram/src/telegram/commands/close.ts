@@ -1,6 +1,6 @@
 import { Bot, Context } from "grammy";
 
-import { sessionManager } from "../services";
+import { sessionManager } from '../../services';
 
 /**
  * Registers the /close command handler on the bot.
