@@ -1,11 +1,11 @@
 import { Context } from 'grammy';
 
-import { loadConfig } from '../../config';
+import { getLlmConfig } from '../../config';
 import { processUserMessage } from '../../core/orchestration';
+import { sessionManager } from '../../services';
 import { uiStateManager } from '../state';
+import { safeEditMessage } from '../helpers';
 import type { TextMessageContext } from './types';
-
-const config = loadConfig();
 
 /**
  * Handles text messages from users who don't have an active chat session.
@@ -17,37 +17,38 @@ export const handleTextOutsideChat = async (ctx: Context): Promise<void> => {
 
 /**
  * Handles text messages from users with an active chat session.
- * Sends the message to YandexGPT and replies with the formatted response.
+ * Sends the message to the selected LLM provider and replies with the formatted response.
  */
 export const handleTextInChat = async (ctx: TextMessageContext): Promise<void> => {
 	const userId = ctx.from.id;
 	const text = ctx.message.text;
 
-	const thinkingMessage = await ctx.reply('Думаю...');
+	const provider = sessionManager.getProvider(userId);
+	if (!provider) {
+		await ctx.reply('Сессия не найдена. Начните новый чат с /chat.');
+		return;
+	}
 
-	const result = await processUserMessage(userId, text, {
-		apiKey: config.yandexApiKey,
-		folderId: config.yandexFolderId,
-	});
+	const thinkingMessage = await ctx.reply('Думаю...');
+	const llmConfig = getLlmConfig(provider);
+
+	const result = await processUserMessage(userId, text, llmConfig);
 
 	if (!result.success || !result.formattedMessage) {
 		await ctx.api.editMessageText(
 			ctx.chat.id,
 			thinkingMessage.message_id,
-			result.error ?? 'Произошла ошибка при обращении к YandexGPT.'
+			result.error ?? 'Произошла ошибка при обращении к LLM.'
 		);
 		return;
 	}
 
-	const { text: formattedText, parseMode, keyboard, questionState } = result.formattedMessage;
+	const { questionState } = result.formattedMessage;
 
 	// Store question state if present
 	if (questionState) {
 		uiStateManager.setQuestionState(userId, questionState);
 	}
 
-	await ctx.api.editMessageText(ctx.chat.id, thinkingMessage.message_id, formattedText, {
-		parse_mode: parseMode,
-		reply_markup: keyboard,
-	});
+	await safeEditMessage(ctx.api, ctx.chat.id, thinkingMessage.message_id, result.formattedMessage);
 };

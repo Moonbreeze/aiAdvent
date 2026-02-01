@@ -93,21 +93,15 @@ export type YandexGptMessage = {
 };
 
 /**
- * Question to the user with answer options.
- */
-export type UserQuestion = {
-	question: string;
-	options: string[];
-	multiSelect?: boolean;
-};
-
-/**
- * Response content with optional question.
+ * Response content with optional answer options.
  */
 export type ResponseContent = {
 	text: string;
-	question?: UserQuestion;
-	/** Indicates if interview is complete and this is the final result */
+	/** Answer options for the user to choose from. */
+	options?: string[];
+	/** Allow multiple selection if true. */
+	multiSelect?: boolean;
+	/** Indicates if interview is complete and this is the final result. */
 	interviewComplete?: boolean;
 };
 
@@ -120,3 +114,110 @@ export type StructuredResponse = {
 	tags: string[];
 	response: ResponseContent;
 };
+
+// ============================================
+// Provider-Agnostic Types
+// ============================================
+
+/**
+ * Available LLM provider identifiers.
+ */
+export const LlmProvider = ['yandex', 'openai', 'claude', 'deepseek'] as const;
+export type LlmProvider = (typeof LlmProvider)[number];
+
+export const isLlmProvider = (value: unknown): value is LlmProvider => {
+	return typeof value === 'string' && LlmProvider.includes(value as LlmProvider);
+};
+
+/**
+ * Model tier - main (capable) vs lite (fast/cheap).
+ */
+export const ModelTier = ['main', 'lite'] as const;
+export type ModelTier = (typeof ModelTier)[number];
+
+/**
+ * Provider-agnostic message format.
+ */
+export type LlmMessage = {
+	role: 'system' | 'user' | 'assistant';
+	content: string;
+};
+
+/**
+ * Provider-agnostic result from LLM call.
+ */
+export type LlmResult = {
+	success: boolean;
+	content?: string;
+	error?: string;
+};
+
+/**
+ * Options for LLM completion request.
+ */
+export type CompletionOptions = {
+	temperature?: number;
+	maxTokens?: number;
+};
+
+/**
+ * Yandex-specific configuration.
+ */
+export type YandexLlmConfig = {
+	provider: 'yandex';
+	apiKey: string;
+	folderId: string;
+};
+
+/**
+ * OpenAI-specific configuration.
+ */
+export type OpenAiLlmConfig = {
+	provider: 'openai';
+	apiKey: string;
+};
+
+/**
+ * Claude-specific configuration.
+ */
+export type ClaudeLlmConfig = {
+	provider: 'claude';
+	apiKey: string;
+};
+
+/**
+ * DeepSeek-specific configuration.
+ */
+export type DeepSeekLlmConfig = {
+	provider: 'deepseek';
+	apiKey: string;
+};
+
+/**
+ * Union of all provider configs.
+ */
+export type LlmConfig = YandexLlmConfig | OpenAiLlmConfig | ClaudeLlmConfig | DeepSeekLlmConfig;
+
+/**
+ * Type guard for Yandex config.
+ */
+export const isYandexConfig = (config: LlmConfig): config is YandexLlmConfig =>
+	config.provider === 'yandex';
+
+/**
+ * Type guard for OpenAI config.
+ */
+export const isOpenAiConfig = (config: LlmConfig): config is OpenAiLlmConfig =>
+	config.provider === 'openai';
+
+/**
+ * Type guard for Claude config.
+ */
+export const isClaudeConfig = (config: LlmConfig): config is ClaudeLlmConfig =>
+	config.provider === 'claude';
+
+/**
+ * Type guard for DeepSeek config.
+ */
+export const isDeepSeekConfig = (config: LlmConfig): config is DeepSeekLlmConfig =>
+	config.provider === 'deepseek';

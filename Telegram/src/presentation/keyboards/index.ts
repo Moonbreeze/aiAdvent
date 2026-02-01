@@ -1,1 +1,6 @@
-export { buildSingleSelectKeyboard, buildMultiSelectKeyboard } from './keyboardBuilder';
+export {
+	buildSingleSelectKeyboard,
+	buildMultiSelectKeyboard,
+	buildProviderKeyboard,
+	getProviderDisplayName,
+} from './keyboardBuilder';

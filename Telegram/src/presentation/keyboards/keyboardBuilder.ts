@@ -1,5 +1,42 @@
 import { InlineKeyboard } from 'grammy';
 
+import type { LlmProvider } from '../../services/llm';
+
+/**
+ * Display names for LLM providers.
+ */
+const providerDisplayNames: Record<LlmProvider, string> = {
+	yandex: 'YandexGPT',
+	deepseek: 'DeepSeek',
+	openai: 'OpenAI',
+	claude: 'Claude',
+};
+
+/**
+ * Builds the inline keyboard for provider selection.
+ * @param providers - Array of available providers.
+ * @param role - Agent role ('chat' or 'interview').
+ * @returns An inline keyboard with provider buttons.
+ */
+export const buildProviderKeyboard = (
+	providers: LlmProvider[],
+	role: 'chat' | 'interview'
+): InlineKeyboard => {
+	const keyboard = new InlineKeyboard();
+	providers.forEach((provider) => {
+		keyboard.text(providerDisplayNames[provider], `provider:${provider}:${role}`).row();
+	});
+	return keyboard;
+};
+
+/**
+ * Gets display name for a provider.
+ * @param provider - The LLM provider.
+ */
+export const getProviderDisplayName = (provider: LlmProvider): string => {
+	return providerDisplayNames[provider];
+};
+
 /**
  * Builds the inline keyboard for single-select questions.
  * @param options - The array of answer options.

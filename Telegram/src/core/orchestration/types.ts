@@ -1,12 +1,7 @@
 import type { FormattedMessage } from '../../presentation/formatters/types';
 
-/**
- * Configuration for LLM interaction.
- */
-export type LlmConfig = {
-	apiKey: string;
-	folderId: string;
-};
+// Re-export LlmConfig from services/llm for convenience
+export type { LlmConfig } from '../../services/llm';
 
 /**
  * Result of conversation processing.

@@ -1,7 +1,11 @@
-import type { OutputMode, ChatMessage, ChatSession, SessionMode } from './types';
-import { isSessionMode } from './types';
+import { randomUUID } from 'crypto';
 
-export { OutputMode, isSessionMode };
+import type { OutputMode, ChatMessage, ChatSession } from './types';
+import type { LlmProvider } from '../../services/llm';
+import type { AgentConfig } from '../agent';
+import { logger } from '../../services/logger';
+
+export { OutputMode };
 
 /**
  * Manages active LLM chat sessions per user.
@@ -13,16 +17,21 @@ class SessionManager {
 	/**
 	 * Starts a new chat session for a user.
 	 * @param userId - The Telegram user ID.
-	 * @param mode - The session mode (chat or interview).
-	 * @param interviewGoal - The initial goal for interview mode.
+	 * @param provider - The LLM provider to use.
+	 * @param agent - Agent configuration (role and role-specific data).
 	 */
-	startSession(userId: number, mode: SessionMode = 'chat', interviewGoal?: string): void {
+	startSession(userId: number, provider: LlmProvider, agent: AgentConfig): void {
+		const chatId = randomUUID();
+
 		this.sessions.set(userId, {
+			chatId,
 			messages: [],
 			startedAt: new Date(),
-			mode,
-			interviewGoal,
+			agent,
+			provider,
 		});
+
+		logger.logChatStart(chatId, userId, provider, agent.role);
 	}
 
 	/**
@@ -89,21 +98,53 @@ class SessionManager {
 	}
 
 	/**
-	 * Gets the session mode for a user.
+	 * Gets the agent configuration for a user's session.
 	 * @param userId - The Telegram user ID.
-	 * @returns The session mode, or undefined if no session exists.
+	 * @returns The agent config, or undefined if no session exists.
 	 */
-	getSessionMode(userId: number): SessionMode | undefined {
-		return this.sessions.get(userId)?.mode;
+	getAgentConfig(userId: number): AgentConfig | undefined {
+		return this.sessions.get(userId)?.agent;
 	}
 
 	/**
-	 * Gets the interview goal for a user.
+	 * Gets the LLM provider for a user's session.
 	 * @param userId - The Telegram user ID.
-	 * @returns The interview goal, or undefined.
+	 * @returns The provider, or undefined if no session exists.
 	 */
-	getInterviewGoal(userId: number): string | undefined {
-		return this.sessions.get(userId)?.interviewGoal;
+	getProvider(userId: number): LlmProvider | undefined {
+		return this.sessions.get(userId)?.provider;
+	}
+
+	/**
+	 * Sets the LLM provider for a user's session.
+	 * @param userId - The Telegram user ID.
+	 * @param provider - The provider to set.
+	 */
+	setProvider(userId: number, provider: LlmProvider): void {
+		const session = this.sessions.get(userId);
+		if (session) {
+			session.provider = provider;
+		}
+	}
+
+	/**
+	 * Gets the chat ID for a user's session.
+	 * @param userId - The Telegram user ID.
+	 * @returns The chat ID, or undefined if no session exists.
+	 */
+	getChatId(userId: number): string | undefined {
+		return this.sessions.get(userId)?.chatId;
+	}
+
+	/**
+	 * Gets the first user message from a session.
+	 * @param userId - The Telegram user ID.
+	 * @returns The first user message text, or undefined.
+	 */
+	getFirstUserMessage(userId: number): string | undefined {
+		const messages = this.sessions.get(userId)?.messages ?? [];
+		const firstUserMessage = messages.find((m) => m.role === 'user');
+		return firstUserMessage?.text;
 	}
 }
 

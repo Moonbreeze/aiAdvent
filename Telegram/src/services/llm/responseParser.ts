@@ -1,16 +1,29 @@
 import type { StructuredResponse } from './types';
 
 /**
+ * Extracts a JSON object string from text that may contain markdown code blocks.
+ * Uses brace matching instead of regex to handle nested backticks in JSON values.
+ */
+const extractJsonString = (text: string): string => {
+	const firstBrace = text.indexOf('{');
+	const lastBrace = text.lastIndexOf('}');
+
+	if (firstBrace !== -1 && lastBrace > firstBrace) {
+		return text.substring(firstBrace, lastBrace + 1);
+	}
+
+	return text.trim();
+};
+
+/**
  * Parses the response text as JSON and validates required fields.
  * Returns a fallback StructuredResponse if parsing fails.
- * @param text - The raw text response from YandexGPT.
+ * @param text - The raw text response from the LLM parser.
  * @returns A structured response object.
  */
 export const parseStructuredResponse = (text: string): StructuredResponse => {
 	try {
-		// Try to extract JSON from markdown code blocks if present
-		const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-		const jsonString = jsonMatch ? jsonMatch[1].trim() : text.trim();
+		const jsonString = extractJsonString(text);
 
 		const parsed = JSON.parse(jsonString);
 
@@ -21,15 +34,12 @@ export const parseStructuredResponse = (text: string): StructuredResponse => {
 			// Old format compatibility
 			responseContent = { text: parsed.response };
 		} else if (typeof parsed.response === 'object' && typeof parsed.response.text === 'string') {
-			// New format
+			// New format with options at response level
 			responseContent = {
 				text: parsed.response.text,
-				question:
-					parsed.response.question &&
-					typeof parsed.response.question.question === 'string' &&
-					Array.isArray(parsed.response.question.options)
-						? parsed.response.question
-						: undefined,
+				options: Array.isArray(parsed.response.options) ? parsed.response.options : undefined,
+				multiSelect: parsed.response.multiSelect === true,
+				interviewComplete: parsed.response.interviewComplete === true,
 			};
 		} else {
 			responseContent = { text };

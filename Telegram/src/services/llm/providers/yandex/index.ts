@@ -1,0 +1,1 @@
+export { createYandexClient } from './client';

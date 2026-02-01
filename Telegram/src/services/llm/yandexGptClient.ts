@@ -1,89 +1,84 @@
+/**
+ * @deprecated This module is deprecated. Use createLlmService() from './llmService' instead.
+ * Kept for backward compatibility only.
+ */
 import type { YandexGptResult, YandexGptMessage } from './types';
-import { isYandexGptResponse } from './types';
+import type { SystemPrompt } from './prompts';
+import { chatSystemPrompt, interviewSystemPrompt, parserSystemPrompt } from './prompts';
 
-const yandexGptUrl = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
-
-const chatSystemPrompt: YandexGptMessage = {
-	role: 'system',
-	text: `Ты — полезный ассистент. Ты ДОЛЖЕН отвечать ТОЛЬКО в формате JSON. Никакого текста вне JSON, никаких пояснений, только валидный JSON объект.
-
-Формат ответа:
-{
-  "datetime": "текущая дата и время в формате ISO 8601",
-  "title": "краткий заголовок ответа (до 50 символов)",
-  "tags": ["тег1", "тег2", "тег3"],
-  "response": {
-    "text": "твой полный ответ на вопрос пользователя",
-    "question": {
-      "question": "текст вопроса к пользователю (если нужно уточнение)",
-      "options": ["вариант 1", "вариант 2", "вариант 3"],
-      "multiSelect": false
-    }
-  }
-}
-
-Все поля обязательны, кроме "question" внутри "response" — его добавляй только если тебе нужно задать уточняющий вопрос пользователю.
-
-Поле "tags" должно содержать от 1 до 5 релевантных тегов.
-Поле "options" должно содержать от 2 до 4 вариантов ответа.
-Поле "multiSelect" (необязательное, по умолчанию false) — если true, пользователь может выбрать несколько вариантов; если false или отсутствует — только один вариант.
-
-Используй "multiSelect": true только когда вопрос явно требует выбора нескольких вариантов (например: "Какие из этих языков вы знаете?", "Отметьте все подходящие варианты").`,
-};
-
-const interviewSystemPrompt: YandexGptMessage = {
-	role: 'system',
-	text: `Ты — интервьюер-аналитик. Твоя задача — собрать информацию от пользователя для достижения его цели через структурированное интервью.
-
-ПРОЦЕСС ИНТЕРВЬЮ:
-1. Первое сообщение пользователя содержит его цель (например: "Я собираюсь в поход. Как мне нужно подготовиться?")
-2. Задавай уточняющие вопросы, чтобы собрать ВСЮ необходимую информацию
-3. Вопросы должны быть конкретными и помогать понять контекст
-4. После сбора достаточной информации сформируй финальный результат
-
-КРИТЕРИИ ЗАВЕРШЕНИЯ:
-- Ты собрал все критически важные данные для достижения цели пользователя
-- Дальнейшие вопросы не добавят существенной ценности
-- У тебя достаточно информации для формирования полезного результата
-
-ФОРМАТ ОТВЕТА — ТОЛЬКО валидный JSON:
-{
-  "datetime": "текущая дата и время в формате ISO 8601",
-  "title": "краткий заголовок (до 50 символов)",
-  "tags": ["тег1", "тег2", "тег3"],
-  "response": {
-    "text": "твой ответ или финальный результат",
-    "question": {
-      "question": "следующий вопрос к пользователю",
-      "options": ["вариант 1", "вариант 2", "вариант 3"],
-      "multiSelect": false
-    },
-    "interviewComplete": false
-  }
-}
-
-ПОЛЯ:
-- "question" — добавляй ТОЛЬКО если интервью не завершено и нужны дополнительные данные
-- "interviewComplete" — установи в true ТОЛЬКО когда готов выдать финальный результат
-- "text" — если интервью продолжается, кратко подтверди полученную информацию; если завершается, выдай ПОЛНЫЙ структурированный результат
-
-ВАЖНО:
-- Когда "interviewComplete": true, НЕ добавляй поле "question"
-- Финальный результат должен быть подробным, структурированным и максимально полезным
-- Используй "multiSelect": true для вопросов, где допустимы множественные ответы
-- Поле "options" должно содержать от 2 до 4 вариантов
-- Поле "tags" должно содержать от 1 до 5 релевантных тегов`,
-};
+const yandexGptAsyncUrl = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completionAsync';
+const operationStatusUrl = 'https://operation.api.cloud.yandex.net/operations';
 
 /**
  * Gets the appropriate system prompt based on session mode.
  */
-const getSystemPrompt = (mode: 'chat' | 'interview'): YandexGptMessage => {
+const getSystemPrompt = (mode: 'chat' | 'interview'): SystemPrompt => {
 	return mode === 'interview' ? interviewSystemPrompt : chatSystemPrompt;
 };
 
+/** Delay helper for polling. */
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Sends messages to the YandexGPT API and returns the response.
+ * Polls the operation status until it completes.
+ * @param operationId - The operation ID to poll.
+ * @param apiKey - The Yandex Cloud API key.
+ * @returns The completed operation result or null if failed.
+ */
+const pollOperation = async (
+	operationId: string,
+	apiKey: string
+): Promise<YandexGptResult> => {
+	const maxAttempts = 30;
+	const pollInterval = 1000;
+
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+		const response = await fetch(`${operationStatusUrl}/${operationId}`, {
+			method: 'GET',
+			headers: {
+				Authorization: `Api-Key ${apiKey}`,
+			},
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error('Operation poll error:', errorText);
+			return { success: false, error: errorText };
+		}
+
+		const operation: unknown = await response.json();
+
+		if (typeof operation !== 'object' || operation === null) {
+			return { success: false, error: 'Invalid operation response' };
+		}
+
+		const op = operation as Record<string, unknown>;
+
+		if (op.done === true) {
+			if (op.error) {
+				const err = op.error as Record<string, unknown>;
+				return { success: false, error: String(err.message ?? 'Operation failed') };
+			}
+
+			const responseData = op.response as Record<string, unknown> | undefined;
+			const alternatives = responseData?.alternatives as Array<Record<string, unknown>> | undefined;
+			const text = (alternatives?.[0]?.message as Record<string, unknown> | undefined)?.text;
+
+			if (typeof text === 'string') {
+				return { success: true, text };
+			}
+
+			return { success: false, error: 'No text in response' };
+		}
+
+		await delay(pollInterval);
+	}
+
+	return { success: false, error: 'Operation timed out' };
+};
+
+/**
+ * Sends messages to the YandexGPT API using async completion and returns the response.
  * @param messages - The conversation history to send to the model.
  * @param apiKey - The Yandex Cloud API key.
  * @param folderId - The Yandex Cloud folder ID.
@@ -97,14 +92,14 @@ export const fetchYandexGpt = async (
 	mode: 'chat' | 'interview' = 'chat'
 ): Promise<YandexGptResult> => {
 	try {
-		const response = await fetch(yandexGptUrl, {
+		const response = await fetch(yandexGptAsyncUrl, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				Authorization: `Api-Key ${apiKey}`,
 			},
 			body: JSON.stringify({
-				modelUri: `gpt://${folderId}/yandexgpt-lite`,
+				modelUri: `gpt://${folderId}/yandexgpt`,
 				completionOptions: {
 					stream: false,
 					temperature: 0.6,
@@ -122,20 +117,82 @@ export const fetchYandexGpt = async (
 
 		const data: unknown = await response.json();
 
-		if (!isYandexGptResponse(data)) {
-			console.error('Invalid YandexGPT response format:', data);
-			return { success: false, error: 'Invalid response format from YandexGPT' };
+		if (typeof data !== 'object' || data === null) {
+			return { success: false, error: 'Invalid async response' };
 		}
 
-		const text = data.result?.alternatives?.[0]?.message?.text;
+		const operationId = (data as Record<string, unknown>).id;
 
-		if (text) {
-			return { success: true, text };
+		if (typeof operationId !== 'string') {
+			console.error('No operation ID in response:', data);
+			return { success: false, error: 'No operation ID in response' };
 		}
 
-		return { success: false, error: 'No response from YandexGPT' };
+		return await pollOperation(operationId, apiKey);
 	} catch (error) {
 		console.error('YandexGPT error:', error);
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Unknown error',
+		};
+	}
+};
+
+/**
+ * Sends a text to the parser agent to convert it to structured JSON.
+ * @param text - The raw assistant response text.
+ * @param apiKey - The Yandex Cloud API key.
+ * @param folderId - The Yandex Cloud folder ID.
+ * @returns A result object containing success status and either JSON text or error.
+ */
+export const parseWithAgent = async (
+	text: string,
+	apiKey: string,
+	folderId: string
+): Promise<YandexGptResult> => {
+	try {
+		const response = await fetch(yandexGptAsyncUrl, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Api-Key ${apiKey}`,
+			},
+			body: JSON.stringify({
+				modelUri: `gpt://${folderId}/yandexgpt-lite`,
+				completionOptions: {
+					stream: false,
+					temperature: 0.1,
+					maxTokens: 2000,
+				},
+				messages: [
+					parserSystemPrompt,
+					{ role: 'user', text },
+				],
+			}),
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error('Parser agent error response:', errorText);
+			return { success: false, error: errorText };
+		}
+
+		const data: unknown = await response.json();
+
+		if (typeof data !== 'object' || data === null) {
+			return { success: false, error: 'Invalid async response' };
+		}
+
+		const operationId = (data as Record<string, unknown>).id;
+
+		if (typeof operationId !== 'string') {
+			console.error('No operation ID in response:', data);
+			return { success: false, error: 'No operation ID in response' };
+		}
+
+		return await pollOperation(operationId, apiKey);
+	} catch (error) {
+		console.error('Parser agent error:', error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Unknown error',

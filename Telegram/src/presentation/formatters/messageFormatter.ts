@@ -36,9 +36,9 @@ export const formatGptResponse = (responseText: string, outputMode: OutputMode):
 
 	const formattedText = `📌 *${structured.title}*\n\n${structured.response.text}\n\n🏷 ${tagsLine}`;
 
-	// Check if there's a question to the user
-	if (structured.response.question) {
-		const { options, multiSelect } = structured.response.question;
+	// Check if there are answer options for the user
+	if (structured.response.options && structured.response.options.length > 0) {
+		const { options, multiSelect } = structured.response;
 		const keyboard = new InlineKeyboard();
 
 		if (multiSelect) {

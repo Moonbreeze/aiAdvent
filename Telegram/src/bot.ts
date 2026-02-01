@@ -1,12 +1,18 @@
-import { Bot } from 'grammy';
+import { Bot, BotError } from 'grammy';
 import 'dotenv/config';
 
 import { loadConfig } from './config';
 import { registerAllCommands, registerAllCallbacks, handleTextOutsideChat, handleTextInChat } from './telegram';
 import { sessionManager } from './services';
+import { logger } from './services';
 
 const config = loadConfig();
 const bot = new Bot(config.botToken);
+
+bot.catch((err: BotError) => {
+	logger.error('Unhandled bot error', err.error);
+	err.ctx.reply('Произошла ошибка. Попробуйте ещё раз.').catch(() => {});
+});
 
 registerAllCommands(bot);
 registerAllCallbacks(bot);

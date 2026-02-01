@@ -5,6 +5,7 @@ import type { QuestionState } from './types';
  */
 export class UIStateManager {
 	private states: Map<number, QuestionState> = new Map();
+	private pendingGoals: Map<number, string> = new Map();
 
 	/**
 	 * Sets the question state for a user.
@@ -56,6 +57,31 @@ export class UIStateManager {
 	 */
 	getSelectedOptions(userId: number): number[] {
 		return this.states.get(userId)?.selectedIndices ?? [];
+	}
+
+	/**
+	 * Stores a pending interview goal before provider selection.
+	 * @param userId - The Telegram user ID.
+	 * @param goal - The interview goal text.
+	 */
+	setPendingGoal(userId: number, goal: string): void {
+		this.pendingGoals.set(userId, goal);
+	}
+
+	/**
+	 * Gets the pending interview goal for a user.
+	 * @param userId - The Telegram user ID.
+	 */
+	getPendingGoal(userId: number): string | undefined {
+		return this.pendingGoals.get(userId);
+	}
+
+	/**
+	 * Clears the pending interview goal for a user.
+	 * @param userId - The Telegram user ID.
+	 */
+	clearPendingGoal(userId: number): void {
+		this.pendingGoals.delete(userId);
 	}
 }
 

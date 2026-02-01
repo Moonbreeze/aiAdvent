@@ -1,15 +1,15 @@
 import { Bot, Context } from 'grammy';
 
 import { sessionManager } from '../../services';
-import { loadConfig } from '../../config';
+import { getAvailableProviders, getLlmConfig } from '../../config';
+import { buildProviderKeyboard, getProviderDisplayName } from '../../presentation/keyboards';
 import { processUserMessage } from '../../core/orchestration';
 import { uiStateManager } from '../state';
-
-const config = loadConfig();
+import { safeEditMessage } from '../helpers';
 
 /**
  * Registers the /interview command handler on the bot.
- * Starts a new interview session where the agent asks questions to gather information.
+ * Shows provider selection before starting an interview session.
  * @param bot - The grammy Bot instance.
  */
 export const registerInterviewCommand = (bot: Bot<Context>) => {
@@ -18,6 +18,11 @@ export const registerInterviewCommand = (bot: Bot<Context>) => {
 
 		if (!userId) {
 			await ctx.reply('Не удалось определить пользователя.');
+			return;
+		}
+
+		if (sessionManager.hasSession(userId)) {
+			await ctx.reply('У вас уже есть активная сессия. Используйте /close для завершения.');
 			return;
 		}
 
@@ -38,34 +43,45 @@ export const registerInterviewCommand = (bot: Bot<Context>) => {
 			return;
 		}
 
-		sessionManager.startSession(userId, 'interview', goal);
+		const availableProviders = getAvailableProviders();
 
-		const thinkingMessage = await ctx.reply('Думаю...');
-
-		const result = await processUserMessage(userId, goal, {
-			apiKey: config.yandexApiKey,
-			folderId: config.yandexFolderId,
-		});
-
-		if (!result.success || !result.formattedMessage) {
-			await ctx.api.editMessageText(
-				ctx.chat.id,
-				thinkingMessage.message_id,
-				result.error ?? 'Произошла ошибка при обращении к YandexGPT.'
-			);
+		if (availableProviders.length === 0) {
+			await ctx.reply('Нет доступных провайдеров. Проверьте конфигурацию.');
 			return;
 		}
 
-		const { text: formattedText, parseMode, keyboard, questionState } = result.formattedMessage;
+		if (availableProviders.length === 1) {
+			// Only one provider available, start session directly
+			const provider = availableProviders[0];
+			sessionManager.startSession(userId, provider, { role: 'interview', goal });
 
-		// Store question state if present
-		if (questionState) {
-			uiStateManager.setQuestionState(userId, questionState);
+			const providerName = getProviderDisplayName(provider);
+			const thinkingMessage = await ctx.reply(`Интервью с ${providerName} начато. Думаю...`);
+
+			const llmConfig = getLlmConfig(provider);
+			const result = await processUserMessage(userId, goal, llmConfig);
+
+			if (!result.success || !result.formattedMessage) {
+				await ctx.api.editMessageText(
+					ctx.chat.id,
+					thinkingMessage.message_id,
+					result.error ?? 'Произошла ошибка при обращении к LLM.'
+				);
+				return;
+			}
+
+			const { questionState } = result.formattedMessage;
+
+			if (questionState) {
+				uiStateManager.setQuestionState(userId, questionState);
+			}
+
+			await safeEditMessage(ctx.api, ctx.chat.id, thinkingMessage.message_id, result.formattedMessage);
+			return;
 		}
 
-		await ctx.api.editMessageText(ctx.chat.id, thinkingMessage.message_id, formattedText, {
-			parse_mode: parseMode,
-			reply_markup: keyboard,
-		});
+		uiStateManager.setPendingGoal(userId, goal);
+		const keyboard = buildProviderKeyboard(availableProviders, 'interview');
+		await ctx.reply('Выберите модель для интервью:', { reply_markup: keyboard });
 	});
 };
